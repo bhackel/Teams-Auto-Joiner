@@ -4,14 +4,15 @@
 
   "run_at_time": "",
 
-  "meeting_mode": 1,
+  "meeting_mode": 3,
   "organisation_num" : 1,
   "random_delay": false,
-  "check_interval": 10,
+  "check_interval": 15,
 
-  "auto_leave_after_min": -1,
-  "leave_if_last": false,
-  "pause_search": false,
+  "join_early_offset": 60,
+  "auto_leave_after_min": 66,
+  "leave_if_last": true,
+  "leave_if_last_count": 5,
 
   "headless" : false,
   "mute_audio": false,

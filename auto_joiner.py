@@ -2,6 +2,7 @@ import json
 import random
 import re
 import time
+import math
 from datetime import datetime
 from threading import Timer
 
@@ -249,7 +250,7 @@ def prepare_page(include_calendar):
         if view_switcher is not None:
             try:
                 browser.execute_script("arguments[0].click();", view_switcher)
-                time.sleep(2)
+                time.sleep(3)
             except Exception as e:
                 print(e)
                 return
@@ -317,16 +318,12 @@ def get_calendar_meetings():
     if wait_until_found("div[class*='__cardHolder']", 20) is None:
         return
 
-    join_buttons = browser.find_elements_by_css_selector("button[class*='__joinButton'], button[class*='__activeCall']")
-    if len(join_buttons) == 0:
+    meeting_cards = browser.find_elements_by_css_selector('div[class*="multi-day-renderer__eventCard"]')
+    if len(meeting_cards) == 0:
         return
 
-    meeting_cards = []
-    for join_button in join_buttons:
-        meeting_card = join_button.find_element_by_xpath("../../..")
-        meeting_cards.append(meeting_card)
-
     for meeting_card in meeting_cards:
+        # Use the card's position on page to find the start time
         style_string = meeting_card.get_attribute("style")
         top_offset = float(style_string[style_string.find("top: ") + 5:style_string.find("rem;")])
 
@@ -337,12 +334,25 @@ def get_calendar_meetings():
 
         start_time = midnight + minutes_from_midnight * 60
 
+        # Find the meeting duration in seconds using the card height
+        card_height_percent = style_string[style_string.find("height: ") + 8:-2]
+        duration = round(float(card_height_percent)/100*24*60*60)
+        
+        end_time = start_time + duration
+
         sec_meeting_card = meeting_card.find_element_by_css_selector("div")
         meeting_name = sec_meeting_card.get_attribute("title").replace("\n", " ")
 
         meeting_id = sec_meeting_card.get_attribute("id")
 
-        meetings.append(Meeting(meeting_id, start_time, meeting_name, calendar_meeting=True))
+        # Get the offset in seconds to join the meeting early
+        if 'join_early_offset' in config and config['join_early_offset'] > 0:
+            join_early_offset = config['join_early_offset']
+
+        # Check if the current time is within the event card range
+        unix_time = datetime.now().timestamp()
+        if (unix_time+join_early_offset > start_time and unix_time < end_time):
+            meetings.append(Meeting(meeting_id, start_time, meeting_name, calendar_meeting=True))
 
 
 def decide_meeting():
@@ -378,7 +388,25 @@ def join_meeting(meeting):
 
     if meeting.calendar_meeting:
         switch_to_calendar_tab()
-        join_btn = wait_until_found(f"div[id='{meeting.m_id}'] > div > button", 5)
+
+        event_card = wait_until_found(f"div[id='{meeting.m_id}']", 5)
+        event_card.click()
+
+        edit_button = wait_until_found('button[class*="meeting-header__button', 1)
+        edit_button.click()
+
+        # Find the meeting link in the event card edit page
+        meeting_link = wait_until_found('.me-email-headline', 5)
+        if meeting_link:
+            url = meeting_link.get_attribute('href')
+            # Add /_#/ to the URL to go to the Join Call page
+            split_index = url.index('/l/')
+            url = url[0:split_index] + '/_#/l/' + url[split_index+3:]
+        else:
+            return
+
+        # Open the meeting link
+        browser.get(url)
 
     else:
         browser.execute_script(f'window.location = "{conversation_link}a?threadId={meeting.channel_id}&ctx=channel";')
@@ -386,10 +414,10 @@ def join_meeting(meeting):
 
         join_btn = wait_until_found(f"div[id='{meeting.m_id}'] > calling-join-button > button", 5)
 
-    if join_btn is None:
-        return
+    # if join_btn is None:
+        # return
 
-    browser.execute_script("arguments[0].click()", join_btn)
+    # browser.execute_script("arguments[0].click()", join_btn)
 
     join_now_btn = wait_until_found("button[data-tid='prejoin-join-button']", 30)
     if join_now_btn is None:
@@ -450,15 +478,38 @@ def get_meeting_members():
             continue
 
     time.sleep(2)
+<<<<<<< Updated upstream
     try:
         browser.execute_script("document.getElementById('roster-button').click()")
     except exceptions.JavascriptException:
         print("Failed to get meeting members")
         return 99
+=======
+
+    # Check if the People list is already open. If not, open it
+    try:
+        list_closed = False
+        ppl_elem = browser.find_element_by_css_selector('.people-picker-container')
+        ppl_elem = ppl_elem.find_element_by_xpath('../..')
+        if 'ng-hide' in ppl_elem.get_attribute('class'):
+            list_closed = True
+    except:
+        list_closed = True
+
+    if list_closed:
+        print('Participants list is closed, trying to open it...')
+        try:
+            browser.find_element_by_css_selector("button[id='roster-button']")
+            browser.execute_script("document.getElementById('roster-button').click()")
+        except:
+            return None
+>>>>>>> Stashed changes
 
     time.sleep(2)
-    participants_elem = browser.find_element_by_css_selector("calling-roster-section[section-key='participantsInCall'] .roster-list-title")
-    attendees_elem = browser.find_element_by_css_selector("calling-roster-section[section-key='attendeesInMeeting'] .roster-list-title")
+
+    # Use people list to get the number of meeting members
+    participants_elem = wait_until_found("calling-roster-section[section-key='participantsInCall'] .roster-list-title", 2)
+    attendees_elem = wait_until_found("calling-roster-section[section-key='attendeesInMeeting'] .roster-list-title", 2)
 
     if participants_elem is not None:
         participants = [int(s) for s in participants_elem.get_attribute("aria-label").split() if s.isdigit()]
@@ -470,11 +521,9 @@ def get_meeting_members():
     else:
         attendees = 0
 
-    if mode != 3:
-        switch_to_teams_tab()
-    else:
-        switch_to_calendar_tab()
-
+    if not participants or not attendees:
+        return None
+    
     return sum(participants + attendees)
 
 
@@ -497,6 +546,13 @@ def hangup():
         return True
     except exceptions.NoSuchElementException:
         return False
+
+    time.sleep(2)
+
+    if mode != 3:
+        switch_to_teams_tab()
+    else:
+        switch_to_calendar_tab()
 
 
 def main():
@@ -573,6 +629,7 @@ def main():
         for team in teams:
             print(team)
 
+    # Delay in seconds between checks for new meetings and participants
     check_interval = 10
     if "check_interval" in config and config['check_interval'] > 1:
         check_interval = config['check_interval']
@@ -580,11 +637,17 @@ def main():
     interval_count = 0
     while 1:
         timestamp = datetime.now()
-        print(f"\n[{timestamp:%H:%M:%S}] Looking for new meetings")
 
+<<<<<<< Updated upstream
         if "pause_search" in config and config['pause_search'] and current_meeting is not None:
             print("Meeting search os paused because you are still in a meeting")
         else:
+=======
+        # Check for new meetings if we are not currently in one
+        if not current_meeting:
+            print(f"\n[{timestamp:%H:%M:%S}] Looking for new meetings")
+
+>>>>>>> Stashed changes
             if mode != 3:
                 switch_to_teams_tab()
                 teams = get_all_teams()
@@ -608,18 +671,21 @@ def main():
                 if meeting_to_join is not None:
                     join_meeting(meeting_to_join)
 
-        meetings = []
+            meetings = []
 
-        if "leave_if_last" in config and config['leave_if_last'] and interval_count % 5 == 0 and interval_count > 0:
+        if "leave_if_last" in config and config['leave_if_last']:
             if current_meeting is not None:
+                timestamp = datetime.now()
                 members = get_meeting_members()
+                print(f"\n[{timestamp:%H:%M:%S}]", 'Current members:', members)
 
-                if 0 < members <= 2:
+                leave_if_last_count = 1
+                if 'leave_if_last_count' in config and leave_if_last_count > 1:
+                    leave_if_last_count = config['leave_if_last_count']
+
+                if members and 0 < members < leave_if_last_count:
                     print("Last attendee in meeting")
                     hangup()
-                    interval_count = 0
-
-        interval_count += 1
 
         time.sleep(check_interval)
 
