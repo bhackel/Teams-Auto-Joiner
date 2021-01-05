@@ -458,11 +458,6 @@ def join_meeting(meeting):
 
     print(f"Joined meeting: {meeting.title}")
 
-    if mode != 3:
-        switch_to_teams_tab()
-    else:
-        switch_to_calendar_tab()
-
     if 'auto_leave_after_min' in config and config['auto_leave_after_min'] > 0:
         hangup_thread = Timer(config['auto_leave_after_min'] * 60, hangup)
         hangup_thread.start()
@@ -478,13 +473,6 @@ def get_meeting_members():
             continue
 
     time.sleep(2)
-<<<<<<< Updated upstream
-    try:
-        browser.execute_script("document.getElementById('roster-button').click()")
-    except exceptions.JavascriptException:
-        print("Failed to get meeting members")
-        return 99
-=======
 
     # Check if the People list is already open. If not, open it
     try:
@@ -503,28 +491,18 @@ def get_meeting_members():
             browser.execute_script("document.getElementById('roster-button').click()")
         except:
             return None
->>>>>>> Stashed changes
-
     time.sleep(2)
 
     # Use people list to get the number of meeting members
-    participants_elem = wait_until_found("calling-roster-section[section-key='participantsInCall'] .roster-list-title", 2)
-    attendees_elem = wait_until_found("calling-roster-section[section-key='attendeesInMeeting'] .roster-list-title", 2)
-
-    if participants_elem is not None:
-        participants = [int(s) for s in participants_elem.get_attribute("aria-label").split() if s.isdigit()]
-    else:
-        participants = 0
-
-    if attendees_elem is not None:
-        attendees = [int(s) for s in attendees_elem.get_attribute("aria-label").split() if s.isdigit()]
-    else:
-        attendees = 0
-
-    if not participants or not attendees:
-        return None
+    total_participants = 0
     
-    return sum(participants + attendees)
+    member_elems = browser.find_elements_by_css_selector('.roster-list-title')
+
+    for member_elem in member_elems:
+        participants = [int(s) for s in member_elem.get_attribute("aria-label").split() if s.isdigit()]
+        total_participants += int(participants[0])
+    
+    return total_participants
 
 
 def hangup():
@@ -533,8 +511,17 @@ def hangup():
         return
 
     try:
-        hangup_btn = browser.find_element_by_css_selector("button[data-tid='call-hangup']")
+        # Ensure that the disconnect button is loaded by hovering over it
+        browser.get('https://teams.microsoft.com/_#/calendarv2')
+        action_bar = wait_until_found("calling-unified-bar", 1)
+        if action_bar:
+            hover = webdriver.common.action_chains.ActionChains(browser).move_to_element(action_bar)
+            hover.perform()
+
+        # Click the hangup button
+        hangup_btn = wait_until_found("button[data-tid='call-hangup']", 2)
         hangup_btn.click()
+
 
         print(f"Left Meeting: {current_meeting.title}")
 
@@ -630,24 +617,16 @@ def main():
             print(team)
 
     # Delay in seconds between checks for new meetings and participants
-    check_interval = 10
+    check_interval = 15
     if "check_interval" in config and config['check_interval'] > 1:
         check_interval = config['check_interval']
 
     interval_count = 0
     while 1:
         timestamp = datetime.now()
-
-<<<<<<< Updated upstream
-        if "pause_search" in config and config['pause_search'] and current_meeting is not None:
-            print("Meeting search os paused because you are still in a meeting")
-        else:
-=======
         # Check for new meetings if we are not currently in one
         if not current_meeting:
             print(f"\n[{timestamp:%H:%M:%S}] Looking for new meetings")
-
->>>>>>> Stashed changes
             if mode != 3:
                 switch_to_teams_tab()
                 teams = get_all_teams()
@@ -680,10 +659,10 @@ def main():
                 print(f"\n[{timestamp:%H:%M:%S}]", 'Current members:', members)
 
                 leave_if_last_count = 1
-                if 'leave_if_last_count' in config and leave_if_last_count > 1:
+                if 'leave_if_last_count' in config and config['leave_if_last_count'] > 1:
                     leave_if_last_count = config['leave_if_last_count']
 
-                if members and 0 < members < leave_if_last_count:
+                if members and members > 0 and members <= leave_if_last_count:
                     print("Last attendee in meeting")
                     hangup()
 
