@@ -22,7 +22,8 @@ I also made a short tutorial video on how to setup the bot: https://youtu.be/Ygk
 - **check_interval:**  
 Delay in seconds between checks for new meetings and participants  
 
-
+- **join_early_offset:**  
+Seconds early that the program will join the meeting. say class starts at 12:20, set at 60 seconds, it will join at 12:19.  
 
 ## Configuration options  
   
