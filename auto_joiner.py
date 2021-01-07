@@ -511,12 +511,8 @@ def hangup():
         return
 
     try:
-        # Ensure that the disconnect button is loaded by hovering over it
+        # Ensure that the disconnect button is loaded by leaving fullscreen
         browser.get('https://teams.microsoft.com/_#/calendarv2')
-        action_bar = wait_until_found("calling-unified-bar", 1)
-        if action_bar:
-            hover = webdriver.common.action_chains.ActionChains(browser).move_to_element(action_bar)
-            hover.perform()
 
         # Click the hangup button
         hangup_btn = wait_until_found("button[data-tid='call-hangup']", 2)
@@ -617,11 +613,10 @@ def main():
             print(team)
 
     # Delay in seconds between checks for new meetings and participants
-    check_interval = 15
+    check_interval = 10
     if "check_interval" in config and config['check_interval'] > 1:
         check_interval = config['check_interval']
 
-    interval_count = 0
     while 1:
         timestamp = datetime.now()
         # Check for new meetings if we are not currently in one
