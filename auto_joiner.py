@@ -612,29 +612,30 @@ def main():
         for team in teams:
             print(team)
 
-    # Delay in seconds between checks for new meetings and participants
+    # Delay in seconds between checks for new meetings and
+    # the count of current participants
     check_interval = 10
     if "check_interval" in config and config['check_interval'] > 1:
         check_interval = config['check_interval']
+
+    # Checks for meeting member count and tries to leave if below threshold
+    leave_if_last = False
+    if "leave_if_last" in config and config['leave_if_last']:
+        leave_if_last = True
+
+    # Maximum number of people in meeting to automatically leave 
+    leave_if_last_count = 1
+    if 'leave_if_last_count' in config and config['leave_if_last_count'] > 1:
+        leave_if_last_count = config['leave_if_last_count']
 
     while 1:
         timestamp = datetime.now()
         # Check for new meetings if we are not currently in one
         if not current_meeting:
             print(f"\n[{timestamp:%H:%M:%S}] Looking for new meetings")
-            if mode != 3:
-                switch_to_teams_tab()
-                teams = get_all_teams()
-
-                if len(teams) == 0:
-                    print("Nothing found, is Teams in list mode?")
-                    exit(1)
-                else:
-                    get_meetings(teams)
-
-            if mode != 2:
-                switch_to_calendar_tab()
-                get_calendar_meetings()
+            
+            switch_to_calendar_tab()
+            get_calendar_meetings()
 
             if len(meetings) > 0:
                 print("Found meetings: ")
@@ -647,19 +648,13 @@ def main():
 
             meetings = []
 
-        if "leave_if_last" in config and config['leave_if_last']:
-            if current_meeting is not None:
-                timestamp = datetime.now()
-                members = get_meeting_members()
-                print(f"\n[{timestamp:%H:%M:%S}]", 'Current members:', members)
+        if leave_if_last and current_meeting is not None:
+            members = get_meeting_members()
+            print(f"\n[{timestamp:%H:%M:%S}]", 'Current members:', members)
 
-                leave_if_last_count = 1
-                if 'leave_if_last_count' in config and config['leave_if_last_count'] > 1:
-                    leave_if_last_count = config['leave_if_last_count']
-
-                if members and members > 0 and members <= leave_if_last_count:
-                    print("Last attendee in meeting")
-                    hangup()
+            if members and members > 0 and members <= leave_if_last_count:
+                print("Last attendee in meeting")
+                hangup()
 
         time.sleep(check_interval)
 
