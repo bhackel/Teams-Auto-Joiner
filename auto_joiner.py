@@ -428,6 +428,7 @@ def join_meeting(meeting):
         active_correlation_id = uuid.group(0)
     else:
         active_correlation_id = ""
+    
     # turn camera off
     video_btn = browser.find_element_by_css_selector("toggle-button[data-tid='toggle-video']>div>button")
     video_is_on = video_btn.get_attribute("aria-pressed")
@@ -493,14 +494,29 @@ def get_meeting_members():
             return None
     time.sleep(2)
 
+    
     # Use people list to get the number of meeting members
     total_participants = 0
     
-    member_elems = browser.find_elements_by_css_selector('.roster-list-title')
+    participants_elem = browser.find_element_by_css_selector("calling-roster-section[section-key='participantsInCall'] .roster-list-title")
+    attendees_elem = browser.find_element_by_css_selector("calling-roster-section[section-key='attendeesInMeeting'] .roster-list-title")
+
+    if participants_elem is not None:
+        total_participants += sum([int(s) for s in participants_elem.get_attribute("aria-label").split() if s.isdigit()])
+
+    if attendees_elem is not None:
+        total_participants += sum([int(s) for s in attendees_elem.get_attribute("aria-label").split() if s.isdigit()])
+
+
+
+    '''member_elems = browser.find_elements_by_css_selector('.roster-list-title')
 
     for member_elem in member_elems:
+        print(member_elem.get_attribute("class"))
+        #if member_elem.get_attribute('section-key') == '':
+
         participants = [int(s) for s in member_elem.get_attribute("aria-label").split() if s.isdigit()]
-        total_participants += int(participants[0])
+        total_participants += int(participants[0])'''
     
     return total_participants
 
@@ -532,10 +548,7 @@ def hangup():
 
     time.sleep(2)
 
-    if mode != 3:
-        switch_to_teams_tab()
-    else:
-        switch_to_calendar_tab()
+    switch_to_calendar_tab()
 
 
 def main():
@@ -590,27 +603,8 @@ def main():
     # wait a bit so the meetings are initialized
     time.sleep(5)
 
-    if mode != 2:
-        prepare_page(include_calendar=True)
-    else:
-        prepare_page(include_calendar=False)
+    prepare_page(include_calendar=False)
 
-    if mode != 3:
-        switch_to_teams_tab()
-
-        url = browser.current_url
-        url = url[:url.find("conversations/") + 14]
-        conversation_link = url
-
-        teams = get_all_teams()
-
-        if len(teams) == 0:
-            print("Not Teams found, is MS Teams in list mode? (switch to mode 3 if you only want calendar meetings)")
-            exit(1)
-
-        print()
-        for team in teams:
-            print(team)
 
     # Delay in seconds between checks for new meetings and
     # the count of current participants
@@ -648,6 +642,7 @@ def main():
 
             meetings = []
 
+        # Check meeting member count to see if we need to leave
         if leave_if_last and current_meeting is not None:
             members = get_meeting_members()
             print(f"\n[{timestamp:%H:%M:%S}]", 'Current members:', members)
@@ -662,6 +657,7 @@ def main():
 if __name__ == "__main__":
     load_config()
 
+    # Calculate startup delay based on config
     if 'run_at_time' in config and config['run_at_time'] != "":
         now = datetime.now()
         run_at = datetime.strptime(config['run_at_time'], "%H:%M").replace(year=now.year, month=now.month, day=now.day)
