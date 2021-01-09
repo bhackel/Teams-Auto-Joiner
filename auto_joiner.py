@@ -142,7 +142,7 @@ def prepare_page(include_calendar):
     if include_calendar:
         switch_to_calendar_tab()
 
-        view_switcher = wait_until_found(".ms-CommandBar-secondaryCommand > div > button[class*='__topBarContent']", 5)
+        view_switcher = wait_until_found(".ms-CommandBar-secondaryCommand > div > button[class*='__topBarContent']", 10)
 
         if view_switcher is not None:
             try:
@@ -153,13 +153,13 @@ def prepare_page(include_calendar):
                 return
 
             day_button = wait_until_found(
-                "li[role='presentation'].ms-ContextualMenu-item>button[aria-posinset='1']", 2, print_error=False)
+                "li[role='presentation'].ms-ContextualMenu-item>button[aria-posinset='1']", 5, print_error=False)
             if day_button is None:
                 browser.execute_script("arguments[0].click();", view_switcher)
                 time.sleep(2)
 
             day_button = wait_until_found(
-                "li[role='presentation'].ms-ContextualMenu-item>button[aria-posinset='1']", 2)
+                "li[role='presentation'].ms-ContextualMenu-item>button[aria-posinset='1']", 5)
             if day_button is not None:
                 try:
                     day_button.click()
