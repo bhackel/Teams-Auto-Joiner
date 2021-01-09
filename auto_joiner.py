@@ -453,7 +453,7 @@ def main():
     if "leave_if_last" in config and config['leave_if_last']:
         leave_if_last = True
 
-    # Maximum number of people in meeting to automatically leave 
+    # Maximum number of people in meeting to automatically leave
     leave_if_last_count = 5
     if 'leave_if_last_count' in config and config['leave_if_last_count'] > 1:
         leave_if_last_count = config['leave_if_last_count']
