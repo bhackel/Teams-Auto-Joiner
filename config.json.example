@@ -4,10 +4,9 @@
 
   "run_at_time": "",
 
-  "meeting_mode": 3,
-  "organisation_num" : 1,
   "random_delay": false,
-  "check_interval": 15,
+  "check_interval": 20,
+  "member_interval": 5,
 
   "join_early_offset": 60,
   "auto_leave_after_min": 66,
@@ -18,6 +17,5 @@
   "mute_audio": false,
   "chrome_type": "google-chrome",
 
-  "blacklist": [],
   "blacklist_meeting_re": "Cura|Free Period"
 }

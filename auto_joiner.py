@@ -25,86 +25,7 @@ already_joined_ids = []
 active_correlation_id = ""
 hangup_thread: Timer = None
 conversation_link = "https://teams.microsoft.com/_#/conversations/a"
-mode = 3
 uuid_regex = r"\b[0-9a-f]{8}\b-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-\b[0-9a-f]{12}\b"
-
-
-class Team:
-    def __init__(self, name, t_id, channels=None):
-        self.name = name
-        self.t_id = t_id
-        if channels is None:
-            self.get_channels()
-        else:
-            self.channels = channels
-
-        self.check_blacklist()
-
-    def __str__(self):
-        channel_string = '\n\t'.join([str(channel) for channel in self.channels])
-
-        return f"{self.name}\n\t{channel_string}"
-
-    def get_elem(self):
-        team_header = browser.find_element_by_css_selector(f"h3[id='{self.t_id}'")
-        team_elem = team_header.find_element_by_xpath("..")
-        return team_elem
-
-    def expand_channels(self):
-        try:
-            self.get_elem().find_element_by_css_selector("div.channels")
-        except exceptions.NoSuchElementException:
-            try:
-                self.get_elem().click()
-                self.get_elem().find_element_by_css_selector("div.channels")
-            except (exceptions.NoSuchElementException, exceptions.ElementNotInteractableException, exceptions.ElementClickInterceptedException):
-                return None
-
-    def get_channels(self):
-        self.expand_channels()
-        channels = self.get_elem().find_elements_by_css_selector(".channels > ul > ng-include > li")
-
-        channel_names = [channel.get_attribute("data-tid") for channel in channels]
-        channel_names = [channel_name[channel_name.find("channel-") + 8:channel_name.find("-li")] for channel_name in
-                         channel_names if channel_name is not None]
-
-        channels_ids = [channel.get_attribute("id").replace("channel-", "") for channel in channels]
-
-        meeting_states = []
-        for channel in channels:
-            try:
-                channel.find_element_by_css_selector("a > active-calls-counter")
-                meeting_states.append(True)
-            except exceptions.NoSuchElementException:
-                meeting_states.append(False)
-
-        self.channels = [Channel(channel_names[i], channels_ids[i], has_meeting=meeting_states[i]) for i in
-                         range(len(channel_names))]
-
-    def check_blacklist(self):
-        blacklist = config['blacklist']
-        blacklist_item = next((bl_team for bl_team in blacklist if bl_team['team_name'] == self.name), None)
-        if blacklist_item is None:
-            return
-
-        if len(blacklist_item['channel_names']) == 0:
-            for channel in self.channels:
-                channel.blacklisted = True
-        else:
-            for channel in self.channels:
-                if channel.name in blacklist_item['channel_names']:
-                    channel.blacklisted = True
-
-
-class Channel:
-    def __init__(self, name, c_id, blacklisted=False, has_meeting=False):
-        self.name = name
-        self.c_id = c_id
-        self.blacklisted = blacklisted
-        self.has_meeting = has_meeting
-
-    def __str__(self):
-        return self.name + (" [BLACKLISTED]" if self.blacklisted else "") + (" [MEETING]" if self.has_meeting else "")
 
 
 class Meeting:
@@ -118,7 +39,6 @@ class Meeting:
 
     def check_blacklist_calendar_meeting(self):
         if "blacklist_meeting_re" in config and config['blacklist_meeting_re'] != "":
-
             regex = config['blacklist_meeting_re']
             return True if re.search(regex, self.title) else False
 
@@ -213,29 +133,6 @@ def switch_to_calendar_tab():
         calendar_button.click()
 
 
-def change_organisation(org_num):
-    select_change_org = wait_until_found("button.tenant-switcher", 20)
-    if select_change_org is None:
-        print("Something went wrong while changing the organisation")
-        return
-
-    select_change_org.click()
-
-    change_org = wait_until_found(f"li.tenant-option[aria-posinset='{org_num}']", 20)
-    if change_org is None:
-        print("Something went wrong while changing the organisation")
-        return
-
-    change_org.click()
-    time.sleep(5)
-
-    use_web_instead = wait_until_found(".use-app-lnk", 5, print_error=False)
-    if use_web_instead is not None:
-        use_web_instead.click()
-
-    time.sleep(1)
-
-
 def prepare_page(include_calendar):
     try:
         browser.execute_script("document.getElementById('toast-container').remove()")
@@ -272,46 +169,6 @@ def prepare_page(include_calendar):
                     pass
 
 
-def get_all_teams():
-    team_elems = browser.find_elements_by_css_selector(
-        "ul>li[role='treeitem']>div[sv-element]")
-
-    team_names = [team_elem.get_attribute("data-tid") for team_elem in team_elems]
-    team_names = [team_name[team_name.find('team-') + 5:team_name.rfind("-li")] for team_name in team_names]
-
-    team_headers = [team_elem.find_element_by_css_selector("h3") for team_elem in team_elems]
-    team_ids = [team_header.get_attribute("id") for team_header in team_headers]
-
-    return [Team(team_names[i], team_ids[i]) for i in range(len(team_elems))]
-
-
-def get_meetings(teams):
-    global meetings
-
-    for team in teams:
-        for channel in team.channels:
-            if channel.has_meeting and not channel.blacklisted:
-                browser.execute_script(f'window.location = "{conversation_link}a?threadId={channel.c_id}&ctx=channel";')
-                switch_to_teams_tab()
-
-                meeting_elem = wait_until_found(".ts-calling-thread-header", 10)
-                if meeting_elem is None:
-                    continue
-                meeting_elems = browser.find_elements_by_css_selector(".ts-calling-thread-header")
-                for meeting_elem in meeting_elems:
-                    meeting_id = meeting_elem.get_attribute("id")
-                    time_started = int(meeting_id.replace("m", "")[:-3])
-
-                    # already joined calendar meeting
-                    correlation_id = meeting_elem.find_element_by_css_selector(
-                        "calling-join-button > button").get_attribute("track-data")
-                    if active_correlation_id != "" and correlation_id.find(active_correlation_id) != -1:
-                        continue
-
-                    meetings.append(
-                        Meeting(meeting_id, time_started, f"{team.name} -> {channel.name}", channel_id=channel.c_id))
-
-
 def get_calendar_meetings():
     global meetings
 
@@ -336,8 +193,8 @@ def get_calendar_meetings():
 
         # Find the meeting duration in seconds using the card height
         card_height_percent = style_string[style_string.find("height: ") + 8:-2]
-        duration = round(float(card_height_percent)/100*24*60*60)
-        
+        duration = round(float(card_height_percent) / 100 * 24 * 60 * 60)
+
         end_time = start_time + duration
 
         sec_meeting_card = meeting_card.find_element_by_css_selector("div")
@@ -346,12 +203,13 @@ def get_calendar_meetings():
         meeting_id = sec_meeting_card.get_attribute("id")
 
         # Get the offset in seconds to join the meeting early
+        join_early_offset = 0
         if 'join_early_offset' in config and config['join_early_offset'] > 0:
             join_early_offset = config['join_early_offset']
 
         # Check if the current time is within the event card range
         unix_time = datetime.now().timestamp()
-        if (unix_time+join_early_offset > start_time and unix_time < end_time):
+        if unix_time + join_early_offset > start_time and unix_time < end_time:
             meetings.append(Meeting(meeting_id, start_time, meeting_name, calendar_meeting=True))
 
 
@@ -401,23 +259,16 @@ def join_meeting(meeting):
             url = meeting_link.get_attribute('href')
             # Add /_#/ to the URL to go to the Join Call page
             split_index = url.index('/l/')
-            url = url[0:split_index] + '/_#/l/' + url[split_index+3:]
+            url = url[0:split_index] + '/_#/l/' + url[split_index + 3:]
         else:
             return
 
         # Open the meeting link
         browser.get(url)
-
     else:
         browser.execute_script(f'window.location = "{conversation_link}a?threadId={meeting.channel_id}&ctx=channel";')
         switch_to_teams_tab()
-
         join_btn = wait_until_found(f"div[id='{meeting.m_id}'] > calling-join-button > button", 5)
-
-    # if join_btn is None:
-        # return
-
-    # browser.execute_script("arguments[0].click()", join_btn)
 
     join_now_btn = wait_until_found("button[data-tid='prejoin-join-button']", 30)
     if join_now_btn is None:
@@ -428,7 +279,7 @@ def join_meeting(meeting):
         active_correlation_id = uuid.group(0)
     else:
         active_correlation_id = ""
-    
+
     # turn camera off
     video_btn = browser.find_element_by_css_selector("toggle-button[data-tid='toggle-video']>div>button")
     video_is_on = video_btn.get_attribute("aria-pressed")
@@ -494,30 +345,21 @@ def get_meeting_members():
             return None
     time.sleep(2)
 
-    
     # Use people list to get the number of meeting members
     total_participants = 0
-    
-    participants_elem = browser.find_element_by_css_selector("calling-roster-section[section-key='participantsInCall'] .roster-list-title")
-    attendees_elem = browser.find_element_by_css_selector("calling-roster-section[section-key='attendeesInMeeting'] .roster-list-title")
+
+    participants_elem = browser.find_element_by_css_selector(
+        "calling-roster-section[section-key='participantsInCall'] .roster-list-title")
+    attendees_elem = browser.find_element_by_css_selector(
+        "calling-roster-section[section-key='attendeesInMeeting'] .roster-list-title")
 
     if participants_elem is not None:
-        total_participants += sum([int(s) for s in participants_elem.get_attribute("aria-label").split() if s.isdigit()])
+        total_participants += sum(
+            [int(s) for s in participants_elem.get_attribute("aria-label").split() if s.isdigit()])
 
     if attendees_elem is not None:
         total_participants += sum([int(s) for s in attendees_elem.get_attribute("aria-label").split() if s.isdigit()])
 
-
-
-    '''member_elems = browser.find_elements_by_css_selector('.roster-list-title')
-
-    for member_elem in member_elems:
-        print(member_elem.get_attribute("class"))
-        #if member_elem.get_attribute('section-key') == '':
-
-        participants = [int(s) for s in member_elem.get_attribute("aria-label").split() if s.isdigit()]
-        total_participants += int(participants[0])'''
-    
     return total_participants
 
 
@@ -533,7 +375,6 @@ def hangup():
         # Click the hangup button
         hangup_btn = wait_until_found("button[data-tid='call-hangup']", 2)
         hangup_btn.click()
-
 
         print(f"Left Meeting: {current_meeting.title}")
 
@@ -552,11 +393,7 @@ def hangup():
 
 
 def main():
-    global config, meetings, mode, conversation_link
-
-    mode = 1
-    if "meeting_mode" in config and 0 < config["meeting_mode"] < 4:
-        mode = config["meeting_mode"]
+    global config, meetings, conversation_link
 
     init_browser()
 
@@ -591,10 +428,6 @@ def main():
         if use_web_instead is not None:
             use_web_instead.click()
 
-    # if additional organisations are setup in the config file
-    if 'organisation_num' in config and config['organisation_num'] > 1:
-        change_organisation(config['organisation_num'])
-
     print("Waiting for correct page...", end='')
     if wait_until_found("#teams-app-bar", 60 * 5) is None:
         exit(1)
@@ -603,14 +436,17 @@ def main():
     # wait a bit so the meetings are initialized
     time.sleep(5)
 
-    prepare_page(include_calendar=False)
+    prepare_page(include_calendar=True)
 
-
-    # Delay in seconds between checks for new meetings and
-    # the count of current participants
-    check_interval = 10
-    if "check_interval" in config and config['check_interval'] > 1:
+    # Delay in seconds between checks for new meetings
+    check_interval = 20
+    if "check_interval" in config and config['check_interval'] >= 0:
         check_interval = config['check_interval']
+
+    # Delay in seconds between current participant count checks
+    member_interval = 10
+    if "member_interval" in config and config['member_interval'] >= 0:
+        member_interval = config['member_interval']
 
     # Checks for meeting member count and tries to leave if below threshold
     leave_if_last = False
@@ -618,7 +454,7 @@ def main():
         leave_if_last = True
 
     # Maximum number of people in meeting to automatically leave 
-    leave_if_last_count = 1
+    leave_if_last_count = 5
     if 'leave_if_last_count' in config and config['leave_if_last_count'] > 1:
         leave_if_last_count = config['leave_if_last_count']
 
@@ -627,7 +463,7 @@ def main():
         # Check for new meetings if we are not currently in one
         if not current_meeting:
             print(f"\n[{timestamp:%H:%M:%S}] Looking for new meetings")
-            
+
             switch_to_calendar_tab()
             get_calendar_meetings()
 
@@ -640,24 +476,27 @@ def main():
                 if meeting_to_join is not None:
                     join_meeting(meeting_to_join)
 
-            meetings = []
+                meetings = []
+            
+            # Check for new meetings after delay
+            time.sleep(check_interval)
 
-        # Check meeting member count to see if we need to leave
-        if leave_if_last and current_meeting is not None:
+        elif leave_if_last and current_meeting is not None:
+            # Check meeting member count to see if we need to leave
             members = get_meeting_members()
             print(f"\n[{timestamp:%H:%M:%S}]", 'Current members:', members)
 
-            if members and members > 0 and members <= leave_if_last_count:
+            if members and 0 < members <= leave_if_last_count:
                 print("Last attendee in meeting")
                 hangup()
 
-        time.sleep(check_interval)
+            time.sleep(member_interval)
 
 
 if __name__ == "__main__":
     load_config()
 
-    # Calculate startup delay based on config
+    # Calculate startup delay in seconds based on config
     if 'run_at_time' in config and config['run_at_time'] != "":
         now = datetime.now()
         run_at = datetime.strptime(config['run_at_time'], "%H:%M").replace(year=now.year, month=now.month, day=now.day)
