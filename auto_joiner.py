@@ -36,10 +36,16 @@ class Meeting:
         self.calendar_meeting = calendar_meeting
         self.calendar_blacklisted = calendar_meeting and self.check_blacklist_calendar_meeting()
         self.channel_id = channel_id
+        self.auto_leave_blacklisted = self.check_blacklist_auto_leave()
 
     def check_blacklist_calendar_meeting(self):
         if "blacklist_meeting_re" in config and config['blacklist_meeting_re'] != "":
             regex = config['blacklist_meeting_re']
+            return True if re.search(regex, self.title) else False
+
+    def check_blacklist_auto_leave(self):
+        if "auto_leave_blacklist_re" in config and config['auto_leave_blacklist_re'] != "":
+            regex = config['auto_leave_blacklist_re']
             return True if re.search(regex, self.title) else False
 
     def __str__(self):
@@ -300,6 +306,9 @@ def join_meeting(meeting):
 
     print(f"Joined meeting: {meeting.title}")
 
+    if meeting.auto_leave_blacklisted:
+        print("Meeting is auto leave blacklisted, will not check member count.")
+
     # Start a thread to hangup the call after delay
     if 'auto_leave_after_min' in config and config['auto_leave_after_min'] > 0:
         hangup_thread = Timer(config['auto_leave_after_min'] * 60, hangup)
@@ -441,14 +450,14 @@ def main():
         member_interval = config['member_interval']
 
     # Checks for meeting member count and tries to leave if below threshold
-    leave_if_last = False
-    if "leave_if_last" in config and config['leave_if_last']:
-        leave_if_last = True
+    auto_leave = False
+    if "auto_leave" in config and config['auto_leave']:
+        auto_leave = True
 
     # Maximum number of people in meeting to automatically leave
-    leave_if_last_count = 5
-    if 'leave_if_last_count' in config and config['leave_if_last_count'] > 1:
-        leave_if_last_count = config['leave_if_last_count']
+    auto_leave_count = 5
+    if 'auto_leave_count' in config and config['auto_leave_count'] > 1:
+        auto_leave_count = config['auto_leave_count']
 
     while 1:
         timestamp = datetime.now()
@@ -481,14 +490,17 @@ def main():
                 current_meeting = None
                 continue
 
-            if leave_if_last:
+            if auto_leave and not current_meeting.auto_leave_blacklisted:
                 # Check meeting member count to see if we need to leave
                 members = get_meeting_members()
                 print(f"\n[{timestamp:%H:%M:%S}]", 'Current members:', members)
 
-                if members and 0 < members <= leave_if_last_count:
+                if members and 0 < members <= auto_leave_count:
                     print("Last attendee in meeting")
                     hangup()
+            
+            else:
+                print(f"\n[{timestamp:%H:%M:%S}] Monitoring meeting status...")
 
             # Check for members after delay
             time.sleep(member_interval)
