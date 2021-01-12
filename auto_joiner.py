@@ -121,14 +121,8 @@ def wait_until_found(sel, timeout, print_error=True):
         return None
 
 
-def switch_to_teams_tab():
-    teams_button = wait_until_found("button.app-bar-link > ng-include > svg.icons-teams", 5)
-    if teams_button is not None:
-        teams_button.click()
-
-
 def switch_to_calendar_tab():
-    calendar_button = wait_until_found("button.app-bar-link > ng-include > svg.icons-calendar", 5)
+    calendar_button = wait_until_found("button.app-bar-link > ng-include > svg.icons-calendar", 15)
     if calendar_button is not None:
         calendar_button.click()
 
@@ -265,10 +259,6 @@ def join_meeting(meeting):
 
         # Open the meeting link
         browser.get(url)
-    else:
-        browser.execute_script(f'window.location = "{conversation_link}a?threadId={meeting.channel_id}&ctx=channel";')
-        switch_to_teams_tab()
-        join_btn = wait_until_found(f"div[id='{meeting.m_id}'] > calling-join-button > button", 5)
 
     join_now_btn = wait_until_found("button[data-tid='prejoin-join-button']", 30)
     if join_now_btn is None:
@@ -299,7 +289,7 @@ def join_meeting(meeting):
         print(f"Wating for {delay}s")
         time.sleep(delay)
 
-    # find again to avoid stale element exception
+    # Join the meeting. Need to find again to avoid stale element exception
     join_now_btn = wait_until_found("button[data-tid='prejoin-join-button']", 5)
     if join_now_btn is None:
         return
@@ -310,12 +300,14 @@ def join_meeting(meeting):
 
     print(f"Joined meeting: {meeting.title}")
 
+    # Start a thread to hangup the call after delay
     if 'auto_leave_after_min' in config and config['auto_leave_after_min'] > 0:
         hangup_thread = Timer(config['auto_leave_after_min'] * 60, hangup)
         hangup_thread.start()
 
 
 def get_meeting_members():
+    # Open the meeting into fullscreen, if it is not already
     meeting_elems = browser.find_elements_by_css_selector(".one-call")
     for meeting_elem in meeting_elems:
         try:
@@ -324,12 +316,11 @@ def get_meeting_members():
         except:
             continue
 
-    time.sleep(2)
 
     # Check if the People list is already open. If not, open it
     try:
         list_closed = False
-        ppl_elem = browser.find_element_by_css_selector('.people-picker-container')
+        ppl_elem = wait_until_found('.people-picker-container', 2)
         ppl_elem = ppl_elem.find_element_by_xpath('../..')
         if 'ng-hide' in ppl_elem.get_attribute('class'):
             list_closed = True
@@ -343,22 +334,25 @@ def get_meeting_members():
             browser.execute_script("document.getElementById('roster-button').click()")
         except:
             return None
-    time.sleep(2)
 
     # Use people list to get the number of meeting members
     total_participants = 0
 
-    participants_elem = browser.find_element_by_css_selector(
-        "calling-roster-section[section-key='participantsInCall'] .roster-list-title")
-    attendees_elem = browser.find_element_by_css_selector(
-        "calling-roster-section[section-key='attendeesInMeeting'] .roster-list-title")
+    participants_elem = wait_until_found(
+        "calling-roster-section[section-key='participantsInCall'] .roster-list-title", 2)
+    attendees_elem = wait_until_found(
+        "calling-roster-section[section-key='attendeesInMeeting'] .roster-list-title", 2)
 
-    if participants_elem is not None:
-        total_participants += sum(
-            [int(s) for s in participants_elem.get_attribute("aria-label").split() if s.isdigit()])
+    # Add the number of users in Participants and Attendees
+    try:
+        if participants_elem is not None:
+            total_participants += sum(
+                [int(s) for s in participants_elem.get_attribute("aria-label").split() if s.isdigit()])
 
-    if attendees_elem is not None:
-        total_participants += sum([int(s) for s in attendees_elem.get_attribute("aria-label").split() if s.isdigit()])
+        if attendees_elem is not None:
+            total_participants += sum([int(s) for s in attendees_elem.get_attribute("aria-label").split() if s.isdigit()])
+    except exceptions.StaleElementReferenceException:
+        pass
 
     return total_participants
 
@@ -393,7 +387,7 @@ def hangup():
 
 
 def main():
-    global config, meetings, conversation_link
+    global config, meetings, conversation_link, current_meeting
 
     init_browser()
 
@@ -433,8 +427,6 @@ def main():
         exit(1)
 
     print("\rFound page, do not click anything on the webpage from now on.")
-    # wait a bit so the meetings are initialized
-    time.sleep(5)
 
     prepare_page(include_calendar=True)
 
@@ -481,15 +473,24 @@ def main():
             # Check for new meetings after delay
             time.sleep(check_interval)
 
-        elif leave_if_last and current_meeting is not None:
-            # Check meeting member count to see if we need to leave
-            members = get_meeting_members()
-            print(f"\n[{timestamp:%H:%M:%S}]", 'Current members:', members)
+        elif current_meeting is not None:
+            # Check to see if the user has manually left the meeting
+            meeting_buttons = wait_until_found('.calling-unified-bar', 2, True)
+            if meeting_buttons == None:
+                print('\nNo active meeting detected, searching for new meeting.')
+                current_meeting = None
+                continue
 
-            if members and 0 < members <= leave_if_last_count:
-                print("Last attendee in meeting")
-                hangup()
+            if leave_if_last:
+                # Check meeting member count to see if we need to leave
+                members = get_meeting_members()
+                print(f"\n[{timestamp:%H:%M:%S}]", 'Current members:', members)
 
+                if members and 0 < members <= leave_if_last_count:
+                    print("Last attendee in meeting")
+                    hangup()
+
+            # Check for members after delay
             time.sleep(member_interval)
 
 
