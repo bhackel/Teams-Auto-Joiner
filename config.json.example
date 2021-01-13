@@ -5,13 +5,15 @@
   "run_at_time": "",
 
   "random_delay": false,
-  "check_interval": 20,
+  "check_interval": 30,
   "member_interval": 5,
 
   "join_early_offset": 60,
   "auto_leave_after_min": 66,
-  "leave_if_last": true,
-  "leave_if_last_count": 5,
+
+  "auto_leave": true,
+  "auto_leave_count": 5,
+  "auto_leave_blacklist_re": "Statistics|Multivariable",
 
   "headless" : false,
   "mute_audio": false,
