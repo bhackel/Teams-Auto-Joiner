@@ -276,6 +276,9 @@ def join_meeting(meeting):
     else:
         active_correlation_id = ""
 
+    # Wait for auto disable by teams
+    time.sleep(3)
+
     # turn camera off
     video_btn = browser.find_element_by_css_selector("toggle-button[data-tid='toggle-video']>div>button")
     video_is_on = video_btn.get_attribute("aria-pressed")
