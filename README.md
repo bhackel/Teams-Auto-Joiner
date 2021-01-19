@@ -1,4 +1,4 @@
-# Teams-Auto-Joiner
+# Teams-Auto-Joiner-BCP
 
 Modified to work with Bellarmine College Preparatory meetings only.
 
