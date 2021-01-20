@@ -493,7 +493,9 @@ def main():
                 current_meeting = None
                 continue
 
-            if auto_leave and not current_meeting.auto_leave_blacklisted:
+            if (current_meeting is not None and auto_leave and
+                not current_meeting.auto_leave_blacklisted):
+
                 # Check meeting member count to see if we need to leave
                 members = get_meeting_members()
                 print(f"\n[{timestamp:%H:%M:%S}]", 'Current members:', members)
