@@ -128,45 +128,44 @@ def wait_until_found(sel, timeout, print_error=True):
 
 
 def switch_to_calendar_tab():
-    calendar_button = wait_until_found("button.app-bar-link > ng-include > svg.icons-calendar", 15)
+    # Clicks the calendar icon on the left of the window
+    calendar_button = wait_until_found(
+        "button.app-bar-link > ng-include > svg.icons-calendar", 15)
     if calendar_button is not None:
         calendar_button.click()
 
 
-def prepare_page(include_calendar):
+def prepare_page():
+    print("Waiting for calendar to load...")
+
+    # todo figure out what this does
     try:
         browser.execute_script("document.getElementById('toast-container').remove()")
     except exceptions.JavascriptException:
         pass
 
-    if include_calendar:
-        switch_to_calendar_tab()
+    switch_to_calendar_tab()
 
-        view_switcher = wait_until_found(".ms-CommandBar-secondaryCommand > div > button[class*='__topBarContent']", 10)
+    try:
+        view_switcher = wait_until_found(
+            ".ms-CommandBar-secondaryCommand > div > button[class*='__topBarContent']", 30)
 
-        if view_switcher is not None:
-            try:
-                browser.execute_script("arguments[0].click();", view_switcher)
-                time.sleep(3)
-            except Exception as e:
-                print(e)
-                return
+        print("Switching calendar to day view...")
 
-            day_button = wait_until_found(
-                "li[role='presentation'].ms-ContextualMenu-item>button[aria-posinset='1']", 5, print_error=False)
-            if day_button is None:
-                browser.execute_script("arguments[0].click();", view_switcher)
-                time.sleep(2)
+        # Wait for calendar to finish loading completely, then click
+        # to open the calendar view switcher
+        time.sleep(4)
+        browser.execute_script("arguments[0].click();", view_switcher)
 
-            day_button = wait_until_found(
-                "li[role='presentation'].ms-ContextualMenu-item>button[aria-posinset='1']", 5)
-            if day_button is not None:
-                try:
-                    day_button.click()
-                    time.sleep(2)
-                except Exception as e:
-                    print(e)
-                    pass
+        # Click the day button to switch to day view
+        day_button = wait_until_found(
+            "li[role='presentation'].ms-ContextualMenu-item>button[aria-posinset='1']", 10)
+        day_button.click()
+        time.sleep(2)
+
+    except Exception as e:
+        print("\nFailed to load calendar:", e)
+        exit(1)
 
 
 def get_calendar_meetings():
@@ -440,7 +439,7 @@ def main():
 
     print("\rFound page, do not click anything on the webpage from now on.")
 
-    prepare_page(include_calendar=True)
+    prepare_page()
 
     # Delay in seconds between checks for new meetings
     check_interval = 20
