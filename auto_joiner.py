@@ -22,7 +22,6 @@ config = None
 meetings = []
 current_meeting = None
 already_joined_ids = []
-active_correlation_id = ""
 hangup_thread: Timer = None
 conversation_link = "https://teams.microsoft.com/_#/conversations/a"
 uuid_regex = r"\b[0-9a-f]{8}\b-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-\b[0-9a-f]{12}\b"
@@ -65,7 +64,6 @@ def init_browser():
     if "chrome_type" in config and config['chrome_type'] == "msedge":
         chrome_options = EdgeOptions()
         chrome_options.use_chromium = True
-
     else:
         chrome_options = webdriver.ChromeOptions()
 
@@ -104,7 +102,7 @@ def init_browser():
     else:
         browser = webdriver.Chrome(ChromeDriverManager().install(), options=chrome_options)
 
-    # make the window a minimum width to show the meetings menu
+    # Make the window a minimum width to show the meetings menu
     window_size = browser.get_window_size()
     if window_size['width'] < 1200:
         print("Resized window width")
@@ -116,6 +114,7 @@ def init_browser():
 
 
 def wait_until_found(sel, timeout, print_error=True):
+    # Waits for an element to appear on the page, until timeout.
     try:
         element_present = EC.visibility_of_element_located((By.CSS_SELECTOR, sel))
         WebDriverWait(browser, timeout).until(element_present)
@@ -194,6 +193,7 @@ def get_calendar_meetings():
         card_height_percent = style_string[style_string.find("height: ") + 8:-2]
         duration = round(float(card_height_percent) / 100 * 24 * 60 * 60)
 
+        # Use start time and duration to find the end time
         end_time = start_time + duration
 
         sec_meeting_card = meeting_card.find_element_by_css_selector("div")
@@ -217,10 +217,12 @@ def decide_meeting():
 
     newest_meetings = []
 
+    # Ignore blacklisted meetings
     meetings = [meeting for meeting in meetings if not meeting.calendar_blacklisted]
     if len(meetings) == 0:
         return
 
+    # Sort meetings by closest time
     meetings.sort(key=lambda x: x.time_started, reverse=True)
     newest_time = meetings[0].time_started
 
@@ -239,7 +241,7 @@ def decide_meeting():
 
 
 def join_meeting(meeting):
-    global hangup_thread, current_meeting, already_joined_ids, active_correlation_id
+    global hangup_thread, current_meeting, already_joined_ids
 
     hangup()
 
@@ -268,12 +270,6 @@ def join_meeting(meeting):
     join_now_btn = wait_until_found("button[data-tid='prejoin-join-button']", 30)
     if join_now_btn is None:
         return
-
-    uuid = re.search(uuid_regex, join_now_btn.get_attribute("track-data"))
-    if uuid is not None:
-        active_correlation_id = uuid.group(0)
-    else:
-        active_correlation_id = ""
 
     # Wait for auto disable by teams
     time.sleep(3)
@@ -309,7 +305,7 @@ def join_meeting(meeting):
     print(f"Joined meeting: {meeting.title}")
 
     if meeting.auto_leave_blacklisted:
-        print("Meeting is auto leave blacklisted, will not check member count.")
+        print("\nMeeting is auto leave blacklisted, will not check member count.\n")
 
     # Start a thread to hangup the call after delay
     if 'auto_leave_after_min' in config and config['auto_leave_after_min'] > 0:
@@ -354,7 +350,7 @@ def get_meeting_members():
     attendees_elem = wait_until_found(
         "calling-roster-section[section-key='attendeesInMeeting'] .roster-list-title", 2)
 
-    # Add the number of users in Participants and Attendees
+    # Sum the number of users in Participants and Attendees
     try:
         if participants_elem is not None:
             total_participants += sum(
@@ -369,7 +365,7 @@ def get_meeting_members():
 
 
 def hangup():
-    global current_meeting, active_correlation_id
+    global current_meeting
     if current_meeting is None:
         return
 
@@ -404,6 +400,7 @@ def main():
 
     browser.get("https://teams.microsoft.com")
 
+    # Login to account using email and password
     if config['email'] != "" and config['password'] != "":
         login_email = wait_until_found("input[type='email']", 30)
         if login_email is not None:
@@ -467,6 +464,7 @@ def main():
         if not current_meeting:
             print(f"\n[{timestamp:%H:%M:%S}] Looking for new meetings")
 
+            # Look for meetings, then join one
             switch_to_calendar_tab()
             get_calendar_meetings()
 
