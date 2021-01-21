@@ -252,7 +252,7 @@ def join_meeting(meeting):
         event_card.click()
 
         edit_button = wait_until_found('button[class*="meeting-header__button', 1)
-        edit_button.click()
+        browser.execute_script("arguments[0].click();", edit_button)
 
         # Find the meeting link in the event card edit page
         meeting_link = wait_until_found('.me-email-headline', 5)
