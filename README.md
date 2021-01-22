@@ -26,7 +26,7 @@ Delay in seconds between checks for current member count and meeting status. Num
 Seconds early that the program will join the meeting. Say class starts at 12:20, set at 60 seconds, it will join at 12:19.
 
 - **auto_leave:**  
-Will constantly monitor the number of meeting members to automatically leave when it is below a threshold.
+Will constantly monitor the number of meeting members to automatically leave when it is below a threshold. Disabling this does not stop auto_leave_after_min from leaving.
 The number is specified by auto_leave_count, and the delay is specified by member_interval.  
 
 - **auto_leave_count:**  

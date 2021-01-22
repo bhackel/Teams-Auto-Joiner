@@ -2,7 +2,6 @@ import json
 import random
 import re
 import time
-import math
 from datetime import datetime
 from threading import Timer
 
@@ -41,11 +40,13 @@ class Meeting:
         if "blacklist_meeting_re" in config and config['blacklist_meeting_re'] != "":
             regex = config['blacklist_meeting_re']
             return True if re.search(regex, self.title) else False
+        return False
 
     def check_blacklist_auto_leave(self):
         if "auto_leave_blacklist_re" in config and config['auto_leave_blacklist_re'] != "":
             regex = config['auto_leave_blacklist_re']
             return True if re.search(regex, self.title) else False
+        return False
 
     def __str__(self):
         return f"\t{self.title} {self.time_started}" + (" [Calendar]" if self.calendar_meeting else " [Channel]") + (
@@ -59,6 +60,7 @@ def load_config():
 
 
 def init_browser():
+    # Setting up the chosen web browser for automation
     global browser
 
     if "chrome_type" in config and config['chrome_type'] == "msedge":
@@ -114,7 +116,7 @@ def init_browser():
 
 
 def wait_until_found(sel, timeout, print_error=True):
-    # Waits for an element to appear on the page, until timeout.
+    # Waits for an element to appear on the page, until timeout
     try:
         element_present = EC.visibility_of_element_located((By.CSS_SELECTOR, sel))
         WebDriverWait(browser, timeout).until(element_present)
@@ -134,7 +136,7 @@ def switch_to_calendar_tab():
         calendar_button.click()
 
 
-def prepare_page():
+def prepare_calendar_page():
     print("Waiting for calendar to load...")
 
     # todo figure out what this does
@@ -143,8 +145,8 @@ def prepare_page():
     except exceptions.JavascriptException:
         pass
 
+    # Open the calendar to switch the view mode
     switch_to_calendar_tab()
-
     try:
         view_switcher = wait_until_found(
             ".ms-CommandBar-secondaryCommand > div > button[class*='__topBarContent']", 30)
@@ -206,7 +208,8 @@ def get_calendar_meetings():
         if 'join_early_offset' in config and config['join_early_offset'] > 0:
             join_early_offset = config['join_early_offset']
 
-        # Check if the current time is within the event card range
+        # Check if the current time is within the event card range,
+        # then add the meeting to the list
         unix_time = datetime.now().timestamp()
         if unix_time + join_early_offset > start_time and unix_time < end_time:
             meetings.append(Meeting(meeting_id, start_time, meeting_name, calendar_meeting=True))
@@ -215,46 +218,32 @@ def get_calendar_meetings():
 def decide_meeting():
     global meetings
 
-    newest_meetings = []
-
-    # Ignore blacklisted meetings
-    meetings = [meeting for meeting in meetings if not meeting.calendar_blacklisted]
+    # Ignore blacklisted and already joined meetings
+    meetings = [x for x in meetings if not x.calendar_blacklisted]
+    meetings = [x for x in meetings if x.m_id not in already_joined_ids]
     if len(meetings) == 0:
         return
 
-    # Sort meetings by closest time
+    # Sort meetings by closest to current time
     meetings.sort(key=lambda x: x.time_started, reverse=True)
-    newest_time = meetings[0].time_started
+    newest_meeting = meetings[0]
 
-    for meeting in meetings:
-        if meeting.time_started >= newest_time:
-            newest_meetings.append(meeting)
-        else:
-            break
-
-    if (current_meeting is None or newest_meetings[0].time_started > current_meeting.time_started) and (
-            current_meeting is None or newest_meetings[0].m_id != current_meeting.m_id) and newest_meetings[
-        0].m_id not in already_joined_ids:
-        return newest_meetings[0]
-
-    return
+    return newest_meeting
 
 
 def join_meeting(meeting):
     global hangup_thread, current_meeting, already_joined_ids
 
-    hangup()
-
     if meeting.calendar_meeting:
         switch_to_calendar_tab()
 
+        # Find the meeting link in the event card edit page
         event_card = wait_until_found(f"div[id='{meeting.m_id}']", 5)
         event_card.click()
 
         edit_button = wait_until_found('button[class*="meeting-header__button', 1)
         browser.execute_script("arguments[0].click();", edit_button)
 
-        # Find the meeting link in the event card edit page
         meeting_link = wait_until_found('.me-email-headline', 5)
         if meeting_link:
             url = meeting_link.get_attribute('href')
@@ -262,35 +251,37 @@ def join_meeting(meeting):
             split_index = url.index('/l/')
             url = url[0:split_index] + '/_#/l/' + url[split_index + 3:]
         else:
+            print("\nCould not find meeting link.")
             return
 
         # Open the meeting link
         browser.get(url)
 
-    join_now_btn = wait_until_found("button[data-tid='prejoin-join-button']", 30)
+    join_now_btn = wait_until_found("button[data-tid='prejoin-join-button']", 10)
     if join_now_btn is None:
         return
 
     # Wait for auto disable by teams
     time.sleep(3)
 
-    # turn camera off
+    # Attempt to turn camera off
     video_btn = browser.find_element_by_css_selector("toggle-button[data-tid='toggle-video']>div>button")
     video_is_on = video_btn.get_attribute("aria-pressed")
     if video_is_on == "true":
         video_btn.click()
         print("Video off")
 
-    # turn mic off
+    # Attempt to turn mic off
     audio_btn = browser.find_element_by_css_selector("toggle-button[data-tid='toggle-mute']>div>button")
     audio_is_on = audio_btn.get_attribute("aria-pressed")
     if audio_is_on == "true":
         audio_btn.click()
         print("Audio off")
 
+    # Wait for a random delay if enabled
     if 'random_delay' in config and config['random_delay']:
         delay = random.randrange(10, 31, 1)
-        print(f"Wating for {delay}s")
+        print(f"Waiting for {delay}s")
         time.sleep(delay)
 
     # Join the meeting. Need to find again to avoid stale element exception
@@ -322,7 +313,6 @@ def get_meeting_members():
             break
         except:
             continue
-
 
     # Check if the People list is already open. If not, open it
     try:
@@ -357,7 +347,8 @@ def get_meeting_members():
                 [int(s) for s in participants_elem.get_attribute("aria-label").split() if s.isdigit()])
 
         if attendees_elem is not None:
-            total_participants += sum([int(s) for s in attendees_elem.get_attribute("aria-label").split() if s.isdigit()])
+            total_participants += sum(
+                [int(s) for s in attendees_elem.get_attribute("aria-label").split() if s.isdigit()])
     except exceptions.StaleElementReferenceException:
         pass
 
@@ -371,26 +362,19 @@ def hangup():
 
     try:
         # Ensure that the disconnect button is loaded by leaving fullscreen
-        browser.get('https://teams.microsoft.com/_#/calendarv2')
+        switch_to_calendar_tab()
 
-        # Click the hangup button
+        # Hangup the call and reset variables
         hangup_btn = wait_until_found("button[data-tid='call-hangup']", 2)
         hangup_btn.click()
-
         print(f"Left Meeting: {current_meeting.title}")
-
         current_meeting = None
-
         if hangup_thread:
             hangup_thread.cancel()
 
         return True
     except exceptions.NoSuchElementException:
         return False
-
-    time.sleep(2)
-
-    switch_to_calendar_tab()
 
 
 def main():
@@ -436,7 +420,7 @@ def main():
 
     print("\rFound page, do not click anything on the webpage from now on.")
 
-    prepare_page()
+    prepare_calendar_page()
 
     # Delay in seconds between checks for new meetings
     check_interval = 20
@@ -478,20 +462,20 @@ def main():
                     join_meeting(meeting_to_join)
 
                 meetings = []
-            
+
             # Check for new meetings after delay
             time.sleep(check_interval)
 
         elif current_meeting is not None:
             # Check to see if the user has manually left the meeting
             meeting_buttons = wait_until_found('.calling-unified-bar', 2, True)
-            if meeting_buttons == None:
+            if meeting_buttons is None:
                 print('\nNo active meeting detected, searching for new meeting.')
                 current_meeting = None
                 continue
 
             if (current_meeting is not None and auto_leave and
-                not current_meeting.auto_leave_blacklisted):
+                    not current_meeting.auto_leave_blacklisted):
 
                 # Check meeting member count to see if we need to leave
                 members = get_meeting_members()
@@ -500,7 +484,7 @@ def main():
                 if members and 0 < members <= auto_leave_count:
                     print("Last attendee in meeting")
                     hangup()
-            
+
             else:
                 print(f"\n[{timestamp:%H:%M:%S}] Monitoring meeting status...")
 
