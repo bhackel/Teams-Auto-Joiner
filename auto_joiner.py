@@ -4,6 +4,7 @@ import re
 import time
 from datetime import datetime
 from threading import Timer
+import playsound
 
 from selenium import webdriver
 from selenium.common import exceptions
@@ -84,7 +85,7 @@ def init_browser():
     })
     chrome_options.add_argument('--no-sandbox')
 
-    chrome_options.add_experimental_option('excludeSwitches', ['enable-automation'])
+    chrome_options.add_experimental_option('excludeSwitches', ['enable-automation', 'enable-logging'])
 
     if 'headless' in config and config['headless']:
         chrome_options.add_argument('--headless')
@@ -289,6 +290,14 @@ def join_meeting(meeting):
     if join_now_btn is None:
         return
     join_now_btn.click()
+
+    # Play a sound to indicate that the bot has joined a meeting
+    if "join_sound" in config and not config["join_sound"] == "":
+        try:
+            playsound.playsound(config["join_sound"])
+            print("Played join sound")
+        except playsound.PlaysoundException:
+            print("Could not play the specified sound file.")
 
     current_meeting = meeting
     already_joined_ids.append(meeting.m_id)

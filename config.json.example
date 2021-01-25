@@ -19,5 +19,7 @@
   "mute_audio": false,
   "chrome_type": "google-chrome",
 
-  "blacklist_meeting_re": "Cura|Free Period"
+  "blacklist_meeting_re": "Cura|Free Period",
+
+  "join_sound": "join.mp3"
 }
