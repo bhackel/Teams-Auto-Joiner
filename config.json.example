@@ -9,7 +9,7 @@
   "member_interval": 5,
 
   "join_early_offset": 60,
-  "auto_leave_after_min": 66,
+  "auto_leave_after_min": 67,
 
   "auto_leave": true,
   "auto_leave_count": 5,
