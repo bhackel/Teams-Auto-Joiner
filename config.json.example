@@ -18,6 +18,8 @@
   "headless" : false,
   "mute_audio": false,
   "chrome_type": "google-chrome",
+  "window_width": 1500,
+  "window_height": 850,
 
   "blacklist_meeting_re": "Cura|Free Period",
 

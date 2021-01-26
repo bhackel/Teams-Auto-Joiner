@@ -108,12 +108,18 @@ def init_browser():
     # Make the window a minimum width to show the meetings menu
     window_size = browser.get_window_size()
     if window_size['width'] < 1200:
+        width = 1200
+        if 'window_width' in config and config['window_width'] > 1200:
+            width = config['window_width']
+        browser.set_window_size(width, window_size['height'])
         print("Resized window width")
-        browser.set_window_size(1200, window_size['height'])
 
     if window_size['height'] < 850:
+        height = 850
+        if 'window_height' in config and config['window_height'] > 850:
+            height = config['window_height']
+        browser.set_window_size(window_size['width'], height)
         print("Resized window height")
-        browser.set_window_size(window_size['width'], 850)
 
 
 def wait_until_found(sel, timeout, print_error=True):
