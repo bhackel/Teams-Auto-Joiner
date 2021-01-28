@@ -388,7 +388,7 @@ def hangup():
             hangup_thread.cancel()
 
         return True
-    except exceptions.NoSuchElementException:
+    except:
         return False
 
 
