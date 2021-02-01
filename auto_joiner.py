@@ -140,7 +140,7 @@ def switch_to_calendar_tab():
     calendar_button = wait_until_found(
         "button.app-bar-link > ng-include > svg.icons-calendar", 15)
     if calendar_button is not None:
-        browser.execute_script("arguments[0].click();", calendar_button)
+        calendar_button.click()
 
 
 def prepare_calendar_page():
