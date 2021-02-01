@@ -1,3 +1,4 @@
 selenium==3.141.0
 webdriver-manager==3.2.2
 msedge-selenium-tools==3.141.3
+playsound==1.2.2
