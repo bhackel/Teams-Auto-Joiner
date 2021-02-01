@@ -487,6 +487,8 @@ def main():
             if meeting_buttons is None:
                 print('\nNo active meeting detected, searching for new meeting.')
                 current_meeting = None
+                if hangup_thread:
+                    hangup_thread.cancel()
                 continue
 
             if (current_meeting is not None and auto_leave and
