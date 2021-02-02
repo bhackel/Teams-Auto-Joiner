@@ -140,7 +140,10 @@ def switch_to_calendar_tab():
     calendar_button = wait_until_found(
         "button.app-bar-link > ng-include > svg.icons-calendar", 15)
     if calendar_button is not None:
-        calendar_button.click()
+        try:
+            calendar_button.click()
+        except:
+            print("Failed to open the calendar")
 
 
 def prepare_calendar_page():
