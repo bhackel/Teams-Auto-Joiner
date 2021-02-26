@@ -105,21 +105,16 @@ def init_browser():
     else:
         browser = webdriver.Chrome(ChromeDriverManager().install(), options=chrome_options)
 
-    # Make the window a minimum width to show the meetings menu
+    # Resize the window according to config, or a minimum
     window_size = browser.get_window_size()
-    if window_size['width'] < 1200:
-        width = 1200
-        if 'window_width' in config and config['window_width'] > 1200:
-            width = config['window_width']
-        browser.set_window_size(width, window_size['height'])
-        print("Resized window width")
-
-    if window_size['height'] < 850:
-        height = 850
-        if 'window_height' in config and config['window_height'] > 850:
-            height = config['window_height']
-        browser.set_window_size(window_size['width'], height)
-        print("Resized window height")
+    width = 1200
+    if 'window_width' in config and config['window_width'] > 0:
+        width = config['window_width']
+    height = 850
+    if 'window_height' in config and config['window_height'] > 0:
+        height = config['window_height']
+    browser.set_window_size(width, height)
+    print("Resized window")
 
 
 def wait_until_found(sel, timeout, print_error=True):
