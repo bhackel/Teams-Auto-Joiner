@@ -481,7 +481,7 @@ def main():
 
         elif current_meeting is not None:
             # Check to see if the user has manually left the meeting
-            meeting_buttons = wait_until_found('.calling-unified-bar', 2, True)
+            meeting_buttons = wait_until_found('.calling-unified-bar', 10, True)
             if meeting_buttons is None:
                 print('\nNo active meeting detected, searching for new meeting.')
                 current_meeting = None
