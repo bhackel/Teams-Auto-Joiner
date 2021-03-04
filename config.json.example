@@ -12,14 +12,14 @@
   "auto_leave_after_min": 67,
 
   "auto_leave": true,
-  "auto_leave_count": 5,
+  "auto_leave_count": 7,
   "auto_leave_blacklist_re": "Statistics|Multivariable",
 
   "headless" : false,
   "mute_audio": false,
   "chrome_type": "google-chrome",
-  "window_width": 1500,
-  "window_height": 850,
+  "window_width": 1116,
+  "window_height": 764,
 
   "blacklist_meeting_re": "Cura|Free Period",
 
