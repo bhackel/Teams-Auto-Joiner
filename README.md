@@ -46,10 +46,10 @@ Leave blank to disable.
 Default is the discord join sound pitched down.
 
 - **window_width:**
-The window will be resized to this value. Must be an integer greater than 1200.
+The window will be resized to this value. Default 1116.
 
 - **window_height:**
-The window will be resized to this value. Must be an integer greater than 850.
+The window will be resized to this value. Default 764.
 
 ## Configuration options
   
@@ -92,6 +92,8 @@ Leave empty to attend to all meetings.
 Default is "Cura|Free Period" to block cura and free period meetings.
 
 ## Run the script
+
+Use the releases listed [here](https://github.com/bhackel/Teams-Auto-Joiner-BCP/releases) or run it using the instructions below.
 
  1. Rename the [config.json.example](config.json.example) file to "config.json"
  2. Edit the "config.json" file to fit your preferences (optional)
