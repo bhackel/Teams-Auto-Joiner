@@ -186,7 +186,10 @@ def get_calendar_meetings():
 
     for meeting_card in meeting_cards:
         # Use the card's position on page to find the start time
-        style_string = meeting_card.get_attribute("style")
+        try:
+            style_string = meeting_card.get_attribute("style")
+        except exceptions.StaleElementReferenceException:
+            pass
         top_offset = float(style_string[style_string.find("top: ") + 5:style_string.find("rem;")])
 
         minutes_from_midnight = int(top_offset / .135)
