@@ -5,6 +5,7 @@ import time
 from datetime import datetime
 from threading import Timer
 import playsound
+import ctypes
 
 from selenium import webdriver
 from selenium.common import exceptions
@@ -511,6 +512,9 @@ def main():
 
 
 if __name__ == "__main__":
+    # Prevent computer from sleeping while script is running
+    ctypes.windll.kernel32.SetThreadExecutionState(0x80000001)
+
     load_config()
 
     # Calculate startup delay in seconds based on config
