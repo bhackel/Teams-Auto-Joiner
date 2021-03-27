@@ -24,9 +24,9 @@ meetings = []
 current_meeting = None
 already_joined_ids = []
 hangup_thread: Timer = None
-conversation_link = "https://teams.microsoft.com/_#/conversations/a"
 uuid_regex = r"\b[0-9a-f]{8}\b-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-\b[0-9a-f]{12}\b"
 
+join_early_offset = 0
 
 class Meeting:
     def __init__(self, m_id, time_started, title, calendar_meeting=False, channel_id=None):
@@ -177,52 +177,43 @@ def prepare_calendar_page():
 
 def get_calendar_meetings():
     global meetings
+    global meetings, join_early_offset
 
-    if wait_until_found("div[class*='__cardHolder']", 20) is None:
+    if wait_until_found("div[class*='__cardHolder']", 5) is None:
         return
 
     meeting_cards = browser.find_elements_by_css_selector('div[class*="multi-day-renderer__eventCard"]')
     if len(meeting_cards) == 0:
         return
-
-    for meeting_card in meeting_cards:
-        # Use the card's position on page to find the start time
-        try:
+    
+    try:
+        for meeting_card in meeting_cards:
+            # Use the card's position on page to find the start time
             style_string = meeting_card.get_attribute("style")
-        except exceptions.StaleElementReferenceException:
-            pass
-        top_offset = float(style_string[style_string.find("top: ") + 5:style_string.find("rem;")])
+            top_offset = float(style_string[style_string.find("top: ") + 5:style_string.find("rem;")])
+            minutes_from_midnight = int(top_offset / .135)
+            midnight = datetime.now().replace(hour=0, minute=0, second=0)
+            midnight = int(datetime.timestamp(midnight))
+            start_time = midnight + minutes_from_midnight * 60
 
-        minutes_from_midnight = int(top_offset / .135)
+            # Find the meeting duration in seconds using the card height
+            card_height_percent = style_string[style_string.find("height: ") + 8:-2]
+            duration = round(float(card_height_percent) / 100 * 24 * 60 * 60)
+            end_time = start_time + duration
 
-        midnight = datetime.now().replace(hour=0, minute=0, second=0)
-        midnight = int(datetime.timestamp(midnight))
+            sec_meeting_card = meeting_card.find_element_by_css_selector("div")
+            meeting_name = sec_meeting_card.get_attribute("title").replace("\n", " ")
+            meeting_id = sec_meeting_card.get_attribute("id")
 
-        start_time = midnight + minutes_from_midnight * 60
-
-        # Find the meeting duration in seconds using the card height
-        card_height_percent = style_string[style_string.find("height: ") + 8:-2]
-        duration = round(float(card_height_percent) / 100 * 24 * 60 * 60)
-
-        # Use start time and duration to find the end time
-        end_time = start_time + duration
-
-        sec_meeting_card = meeting_card.find_element_by_css_selector("div")
-        meeting_name = sec_meeting_card.get_attribute("title").replace("\n", " ")
-
-        meeting_id = sec_meeting_card.get_attribute("id")
-
-        # Get the offset in seconds to join the meeting early
-        join_early_offset = 0
-        if 'join_early_offset' in config and config['join_early_offset'] > 0:
-            join_early_offset = config['join_early_offset']
-
-        # Check if the current time is within the event card range,
-        # then add the meeting to the list
-        unix_time = datetime.now().timestamp()
-        if unix_time + join_early_offset > start_time and unix_time < end_time:
-            meetings.append(Meeting(meeting_id, start_time, meeting_name, calendar_meeting=True))
-
+            # Check if the current time is within the event card range,
+            # then add the meeting to the list
+            unix_time = datetime.now().timestamp()
+            if unix_time + join_early_offset > start_time and unix_time < end_time:
+                meetings.append(Meeting(meeting_id, start_time, meeting_name))
+        return True
+    except exceptions.StaleElementReferenceException:
+        print("Failed to get meeting times.")
+        return False
 
 def decide_meeting():
     global meetings
@@ -396,6 +387,7 @@ def hangup():
 
 def main():
     global config, meetings, conversation_link, current_meeting
+    global config, meetings, current_meeting, join_early_offset
 
     init_browser()
 
@@ -458,6 +450,11 @@ def main():
     auto_leave_count = 5
     if 'auto_leave_count' in config and config['auto_leave_count'] > 1:
         auto_leave_count = config['auto_leave_count']
+
+    # Get the offset in seconds to join the meeting early
+    join_early_offset = 0
+    if 'join_early_offset' in config and config['join_early_offset'] > 0:
+        join_early_offset = config['join_early_offset']
 
     while 1:
         timestamp = datetime.now()
