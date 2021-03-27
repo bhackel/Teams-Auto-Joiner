@@ -459,7 +459,14 @@ def main():
     while 1:
         timestamp = datetime.now()
         # Check for new meetings if we are not currently in one
-        if not current_meeting:
+        if current_meeting is None:
+            # Check if user has manually joined a meeting
+            meeting_buttons = wait_until_found('.calling-unified-bar', 0, False)
+            if meeting_buttons is not None:
+                print('\nActive meeting detected, user has manually joined.')
+                current_meeting = Meeting(None, None, None)
+                continue
+
             print(f"\n[{timestamp:%H:%M:%S}] Looking for new meetings")
 
             # Look for meetings, then join one
