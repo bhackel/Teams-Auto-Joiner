@@ -24,7 +24,6 @@ meetings = []
 current_meeting = None
 already_joined_ids = []
 hangup_thread: Timer = None
-uuid_regex = r"\b[0-9a-f]{8}\b-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-\b[0-9a-f]{12}\b"
 join_early_offset = 0
 
 class Meeting:
@@ -89,14 +88,14 @@ def init_browser():
     chrome_options.add_argument('--no-sandbox')
     chrome_options.add_experimental_option('excludeSwitches', ['enable-automation', 'enable-logging'])
 
-    if 'headless' in config and config['headless']:
+    if "headless" in config and config['headless']:
         chrome_options.add_argument('--headless')
         print("Enabled headless mode")
 
-    if 'mute_audio' in config and config['mute_audio']:
-        chrome_options.add_argument("--mute-audio")
+    if "mute_audio" in config and config['mute_audio']:
+        chrome_options.add_argument('--mute-audio')
 
-    if 'chrome_type' in config:
+    if "chrome_type" in config:
         if config['chrome_type'] == "chromium":
             browser = webdriver.Chrome(ChromeDriverManager(chrome_type=ChromeType.CHROMIUM).install(),
                                        options=chrome_options)
@@ -109,10 +108,10 @@ def init_browser():
 
     # Resize the window according to config, or a minimum
     width = 1200
-    if 'window_width' in config and config['window_width'] > 0:
+    if "window_width" in config and config['window_width'] > 0:
         width = config['window_width']
     height = 850
-    if 'window_height' in config and config['window_height'] > 0:
+    if "window_height" in config and config['window_height'] > 0:
         height = config['window_height']
     browser.set_window_size(width, height)
     print("Resized window.")
@@ -144,6 +143,7 @@ def switch_to_calendar_tab():
 
 
 def prepare_calendar_page():
+    # Opens and switches the calendar to Day View so meeting search works
     print("Waiting for calendar to load...")
 
     # Remove any popups that might block simulated clicks
@@ -155,22 +155,31 @@ def prepare_calendar_page():
     # Open the calendar to switch the view mode
     switch_to_calendar_tab()
     try:
-        view_switcher = wait_until_found(
-            ".ms-CommandBar-secondaryCommand > div > button[class*='__topBarContent']", 30)
+        switcher_string = ".ms-CommandBar-secondaryCommand > div > button[class*='__topBarContent']"
+        view_switcher = wait_until_found(switcher_string, 30)
 
         print("Switching calendar to day view...")
 
-        # Wait for calendar to finish loading completely, then click
-        # to open the calendar view switcher
-        time.sleep(4)
-        browser.execute_script("arguments[0].click();", view_switcher)
-
-        # Click the day button to switch to day view
-        day_button = wait_until_found(
-            "li[role='presentation'].ms-ContextualMenu-item>button[aria-posinset='1']", 10)
-        day_button.click()
-        time.sleep(2)
-
+        # Continually try switching to day view
+        success = False
+        while not success:
+            view_switcher = wait_until_found(switcher_string, 1)
+            if view_switcher is None:
+                print("Reopening calendar page...")
+                switch_to_calendar_tab()
+                time.sleep(2)
+                continue
+            # Open switcher and click Day
+            browser.execute_script("arguments[0].click();", view_switcher)
+            day_button = wait_until_found(
+                "li[role='presentation'].ms-ContextualMenu-item>button[aria-posinset='1']", 5)
+            day_button.click()
+            # Check if the change worked
+            view_switcher = wait_until_found(switcher_string, 1)
+            if view_switcher is not None and view_switcher.text == "Day":
+                success = True
+            time.sleep(1)
+        print("Switched calendar view mode.")
     except Exception as e:
         print("\nFailed to load calendar:", e)
         exit(1)
@@ -182,7 +191,7 @@ def get_calendar_meetings():
     if wait_until_found("div[class*='__cardHolder']", 5) is None:
         return
 
-    meeting_cards = browser.find_elements_by_css_selector('div[class*="multi-day-renderer__eventCard"]')
+    meeting_cards = browser.find_elements_by_css_selector("div[class*='multi-day-renderer__eventCard']")
     if len(meeting_cards) == 0:
         return
     
@@ -248,7 +257,7 @@ def join_meeting(meeting):
         url = meeting_link.get_attribute('href')
         # Add /_#/ to the URL to go to the Join Call page
         split_index = url.index('/l/')
-        url = url[0:split_index] + '/_#/l/' + url[split_index + 3:]
+        url = url[0:split_index] + "/_#/l/" + url[split_index + 3:]
     else:
         print("\nCould not find meeting link.")
         return
@@ -278,7 +287,7 @@ def join_meeting(meeting):
         print("Audio off")
 
     # Wait for a random delay if enabled
-    if 'random_delay' in config and config['random_delay']:
+    if "random_delay" in config and config['random_delay']:
         delay = random.randrange(10, 31, 1)
         print(f"Waiting for {delay}s")
         time.sleep(delay)
@@ -306,14 +315,14 @@ def join_meeting(meeting):
         print("\nMeeting is auto leave blacklisted, will not check member count.\n")
 
     # Start a thread to hangup the call after delay
-    if 'auto_leave_after_min' in config and config['auto_leave_after_min'] > 0:
+    if "auto_leave_after_min" in config and config['auto_leave_after_min'] > 0:
         hangup_thread = Timer(config['auto_leave_after_min'] * 60, hangup)
         hangup_thread.start()
 
 
 def get_meeting_members():
     # Open the meeting into fullscreen, if it is not already
-    meeting_elems = browser.find_elements_by_css_selector(".one-call")
+    meeting_elems = browser.find_elements_by_css_selector('.one-call')
     for meeting_elem in meeting_elems:
         try:
             meeting_elem.click()
@@ -326,13 +335,13 @@ def get_meeting_members():
         list_closed = False
         ppl_elem = wait_until_found('.people-picker-container', 2)
         ppl_elem = ppl_elem.find_element_by_xpath('../..')
-        if 'ng-hide' in ppl_elem.get_attribute('class'):
+        if "ng-hide" in ppl_elem.get_attribute('class'):
             list_closed = True
     except:
         list_closed = True
 
     if list_closed:
-        print('Participants list is closed, trying to open it...')
+        print("Participants list is closed, trying to open it...")
         try:
             browser.find_element_by_css_selector("button[id='roster-button']")
             browser.execute_script("document.getElementById('roster-button').click()")
@@ -445,12 +454,12 @@ def main():
 
     # Maximum number of people in meeting to automatically leave
     auto_leave_count = 7
-    if 'auto_leave_count' in config and config['auto_leave_count'] > 1:
+    if "auto_leave_count" in config and config['auto_leave_count'] > 1:
         auto_leave_count = config['auto_leave_count']
 
     # Get the offset in seconds to join the meeting early
-    join_early_offset = 0
-    if 'join_early_offset' in config and config['join_early_offset'] > 0:
+    join_early_offset = 60
+    if "join_early_offset" in config and config['join_early_offset'] > 0:
         join_early_offset = config['join_early_offset']
 
     while 1:
@@ -460,7 +469,7 @@ def main():
             # Check if user has manually joined a meeting
             meeting_buttons = wait_until_found('.calling-unified-bar', 0, False)
             if meeting_buttons is not None:
-                print('\nActive meeting detected, user has manually joined.')
+                print("\nActive meeting detected, user has manually joined.")
                 current_meeting = Meeting(None, None, None)
                 continue
 
@@ -475,7 +484,6 @@ def main():
                 meeting_to_join = decide_meeting()
                 if meeting_to_join is not None:
                     join_meeting(meeting_to_join)
-
             # Check for new meetings after delay
             time.sleep(check_interval)
 
@@ -483,7 +491,7 @@ def main():
             # Check if the user has manually left the meeting
             meeting_buttons = wait_until_found('.calling-unified-bar', 10)
             if meeting_buttons is None:
-                print('\nNo active meeting detected, searching for new meeting.')
+                print("\nNo active meeting detected, searching for new meeting.")
                 current_meeting = None
                 if hangup_thread:
                     hangup_thread.cancel()
@@ -494,7 +502,7 @@ def main():
 
                 # Check meeting member count to see if we need to leave
                 members = get_meeting_members()
-                print(f"\n[{timestamp:%H:%M:%S}]", 'Current members:', members)
+                print(f"\n[{timestamp:%H:%M:%S}]", "Current members:", members)
                 if members and 0 < members <= auto_leave_count:
                     print("Last attendee in meeting")
                     hangup()
@@ -512,7 +520,7 @@ if __name__ == "__main__":
 
     # Calculate startup delay in seconds based on config
     load_config()
-    if 'run_at_time' in config and config['run_at_time'] != "":
+    if "run_at_time" in config and config['run_at_time'] != "":
         now = datetime.now()
         run_at = datetime.strptime(config['run_at_time'], "%H:%M").replace(
             year=now.year, month=now.month, day=now.day)
@@ -533,4 +541,4 @@ if __name__ == "__main__":
             browser.quit()
         if hangup_thread is not None:
             hangup_thread.cancel()
-        input("Push any key to exit.")
+        input("Push enter to exit.")
